@@ -1,0 +1,85 @@
+import telebot
+from telebot import types
+
+# Токени боти ту
+bot = telebot.TeleBot("8265278562:AAFh6mwxZ3ne9nbYhH_tWuL9GkaDwghu5Dw")
+
+# ID-и ту барои гирифтани маълумоти фармоишҳо
+ADMIN_ID = 7613262506
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("💎 Алмазҳо", "🎫 Пропуск ва Ваучерҳо")
+    bot.send_message(message.chat.id, "Хуш омадед! Чиро мехоҳед харед?", reply_markup=markup)
+
+@bot.message_handler(func=lambda message: message.text == "💎 Алмазҳо")
+def show_diamonds(message):
+    markup = types.InlineKeyboardMarkup()
+    for amount, price in [("100", "10"), ("310", "26"), ("520", "45"), ("1060", "80"), ("2180", "150"), ("5600", "370")]:
+        markup.add(types.InlineKeyboardButton(f"{amount} алмаз - {price} сомонӣ", callback_data=f"buy_diamonds:{amount}:{price}"))
+    bot.send_message(message.chat.id, "Интихоби худро кунед:", reply_markup=markup)
+
+@bot.message_handler(func=lambda message: message.text == "🎫 Пропуск ва Ваучерҳо")
+def show_vouchers(message):
+    markup = types.InlineKeyboardMarkup()
+    vouchers = [
+        ("Пропуск", "40"),
+        ("Ваучер на неделю", "16"),
+        ("Ваучер на месяц", "92"),
+        ("Еженедельный Lite", "6")
+    ]
+    for name, price in vouchers:
+        markup.add(types.InlineKeyboardButton(f"{name} - {price} сомонӣ", callback_data=f"buy_voucher:{name}:{price}"))
+    bot.send_message(message.chat.id, "Интихоби худро кунед:", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("buy_"))
+def process_order(call):
+    parts = call.data.split(":")
+    if call.data.startswith("buy_diamonds"):
+        item = f"{parts[1]} алмаз"
+        price = parts[2]
+    elif call.data.startswith("buy_voucher"):
+        item = parts[1]
+        price = parts[2]
+    else:
+        return
+
+    pay_text = (
+        f"📦 Фармоиш: {item}\n"
+        f"💰 Нархи: {price} сомонӣ\n\n"
+        "📲 Роҳҳои пардохт:\n"
+        "1. Душанбе Пэй (ДС)\n"
+        "2. Эсхата\n"
+        "3. Алиф Мобайл\n\n"
+        "🔢 Рақами пардохт: +992782789999\n\n"
+        "Пас аз пардохт, '✅ Оплатил' ро зер кунед."
+    )
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("✅ Оплатил", callback_data=f"paid:{item}:{price}"))
+    bot.send_message(call.message.chat.id, pay_text, reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("paid:"))
+def ask_receipt(call):
+    item, price = call.data.split(":")[1:]
+    msg = bot.send_message(call.message.chat.id, "📸 Лутфан чеки пардохтро фиристед.")
+    bot.register_next_step_handler(msg, lambda m: forward_receipt(m, item, price))
+
+def forward_receipt(message, item, price):
+    caption = (
+        f"🆕 Фармоиши нав!\n"
+        f"👤 {message.from_user.first_name} (@{message.from_user.username})\n"
+        f"📦 Маҳсулот: {item}\n"
+        f"💰 Нарх: {price} сомонӣ\n"
+        f"🕒 Вақт: {message.date}\n"
+        f"📥 ID: {message.from_user.id}"
+    )
+    if message.photo:
+        bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption)
+    else:
+        bot.send_message(ADMIN_ID, caption + "\n(Чек бе расм)")
+
+    bot.send_message(message.chat.id, "✅ Чек қабул шуд! Пас аз тафтиш, бо шумо тамос мегирем.")
+
+# Оғози бот
+bot.polling(none_stop=True)
